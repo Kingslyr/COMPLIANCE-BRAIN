@@ -10,7 +10,6 @@ export async function POST(req: NextRequest) {
   try {
     const { message, sessionId, userId, industry, country } = await req.json();
 
-    // 1. Search regulations from DB
     const { data: regulations } = await supabaseAdmin
       .from("regulations")
       .select("*")
@@ -22,29 +21,25 @@ export async function POST(req: NextRequest) {
       ? regulations.map((r: any) =>
         `[${r.document_name} | ${r.country} | ${r.industry} | Section ${r.section_number || "N/A"} | Page ${r.page_number || "N/A"}]\n${r.content}`
       ).join("\n\n---\n\n")
-      : "No specific regulations found in database. Provide general guidance based on your knowledge.";
+      : "No specific regulations found. Provide general guidance based on your knowledge.";
 
-    // 2. Build prompt for Gemini
-    const prompt = `You are Compliance Brain, an expert AI compliance assistant specializing in ${industry} industry regulations for ${country} and MENA region.
+    const prompt = `You are Compliance Brain, an expert AI compliance assistant for ${industry} industry in ${country} and MENA region.
 
-Your job is to answer compliance questions with EXACT references to regulations.
+Answer compliance questions with EXACT references to regulations.
 
-REGULATIONS DATABASE:
+REGULATIONS:
 ${regContext}
 
 RULES:
-- Always cite the exact document name, section number, page number when available
-- Format references as: [Document Name, Section X, Page Y]
+- Cite exact document name, section, page when available
+- Format: [Document Name, Section X, Page Y]
 - Be concise and clear
-- Structure: direct answer → cite regulation → what action is needed
 - Use bullet points for multiple requirements
-- End with: "Reference: [Document, Section, Page]" for each cited regulation
 
 USER QUESTION: ${message}`;
 
-    // 3. Call Gemini API
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -58,7 +53,6 @@ USER QUESTION: ${message}`;
     const geminiData = await geminiRes.json();
     const assistantMessage = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I could not process your request.";
 
-    // 4. Extract references
     const refs = (regulations || [])
       .filter((r: any) => assistantMessage.includes(r.document_name))
       .map((r: any) => ({
@@ -70,7 +64,6 @@ USER QUESTION: ${message}`;
         industry: r.industry,
       }));
 
-    // 5. Save messages to DB
     await supabaseAdmin.from("chat_messages").insert([
       { session_id: sessionId, user_id: userId, role: "user", content: message },
       { session_id: sessionId, user_id: userId, role: "assistant", content: assistantMessage, reg_references: refs },
