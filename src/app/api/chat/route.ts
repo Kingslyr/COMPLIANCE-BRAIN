@@ -38,20 +38,23 @@ RULES:
 
 USER QUESTION: ${message}`;
 
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 1000, temperature: 0.3 },
-        }),
-      }
-    );
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        "HTTP-Referer": "https://compliance-brain.vercel.app",
+        "X-Title": "Compliance Brain",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "meta-llama/llama-3.1-8b-instruct:free",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 1000,
+      }),
+    });
 
-    const geminiData = await geminiRes.json();
-    const assistantMessage = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I could not process your request.";
+    const data = await response.json();
+    const assistantMessage = data.choices?.[0]?.message?.content || "Sorry, I could not process your request.";
 
     const refs = (regulations || [])
       .filter((r: any) => assistantMessage.includes(r.document_name))
