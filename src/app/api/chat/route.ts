@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -19,20 +16,16 @@ export async function POST(req: NextRequest) {
       .select("*")
       .or(`industry.eq.${industry},industry.eq.All`)
       .or(`country.eq.${country},country.eq.All`)
-      .textSearch("content", message.split(" ").slice(0, 5).join(" | "), {
-        type: "websearch",
-        config: "english",
-      })
       .limit(8);
 
     const regContext = regulations && regulations.length > 0
       ? regulations.map((r: any) =>
-          `[${r.document_name} | ${r.country} | ${r.industry} | Section ${r.section_number || "N/A"} | Page ${r.page_number || "N/A"}]\n${r.content}`
-        ).join("\n\n---\n\n")
-      : "No specific regulations found in database. Provide general guidance.";
+        `[${r.document_name} | ${r.country} | ${r.industry} | Section ${r.section_number || "N/A"} | Page ${r.page_number || "N/A"}]\n${r.content}`
+      ).join("\n\n---\n\n")
+      : "No specific regulations found in database. Provide general guidance based on your knowledge.";
 
-    // 2. Build system prompt
-    const systemPrompt = `You are Compliance Brain, an expert AI compliance assistant specializing in ${industry} industry regulations for ${country} and MENA region.
+    // 2. Build prompt for Gemini
+    const prompt = `You are Compliance Brain, an expert AI compliance assistant specializing in ${industry} industry regulations for ${country} and MENA region.
 
 Your job is to answer compliance questions with EXACT references to regulations.
 
@@ -40,27 +33,32 @@ REGULATIONS DATABASE:
 ${regContext}
 
 RULES:
-- Always cite the exact document name, section number, page number, and line number when available
-- Format references as: [Document Name, Section X, Page Y, Line Z]
-- If a regulation is in the database, use it. If not, give general guidance and say the regulation may need verification
-- Be concise and clear — the user may not be a legal expert
-- Structure your answer: first give a direct answer, then cite the regulation, then explain what action is needed
+- Always cite the exact document name, section number, page number when available
+- Format references as: [Document Name, Section X, Page Y]
+- Be concise and clear
+- Structure: direct answer → cite regulation → what action is needed
 - Use bullet points for multiple requirements
-- End with: "Reference: [Document, Section, Page, Line]" for each cited regulation`;
+- End with: "Reference: [Document, Section, Page]" for each cited regulation
 
-    // 3. Call Claude
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1000,
-      system: systemPrompt,
-      messages: [{ role: "user", content: message }],
-    });
+USER QUESTION: ${message}`;
 
-    const assistantMessage = response.content[0].type === "text"
-      ? response.content[0].text
-      : "";
+    // 3. Call Gemini API
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { maxOutputTokens: 1000, temperature: 0.3 },
+        }),
+      }
+    );
 
-    // 4. Extract references from response
+    const geminiData = await geminiRes.json();
+    const assistantMessage = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I could not process your request.";
+
+    // 4. Extract references
     const refs = (regulations || [])
       .filter((r: any) => assistantMessage.includes(r.document_name))
       .map((r: any) => ({
@@ -75,7 +73,7 @@ RULES:
     // 5. Save messages to DB
     await supabaseAdmin.from("chat_messages").insert([
       { session_id: sessionId, user_id: userId, role: "user", content: message },
-      { session_id: sessionId, user_id: userId, role: "assistant", content: assistantMessage, references: refs },
+      { session_id: sessionId, user_id: userId, role: "assistant", content: assistantMessage, reg_references: refs },
     ]);
 
     return NextResponse.json({ message: assistantMessage, references: refs });
