@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -12,7 +10,6 @@ export async function POST(req: NextRequest) {
   try {
     const { userId, industry, country, companyName } = await req.json();
 
-    // Fetch all relevant regulations
     const { data: regulations } = await supabaseAdmin
       .from("regulations")
       .select("*")
@@ -55,17 +52,26 @@ Return ONLY valid JSON in this exact format:
   "generated_at": "${new Date().toISOString()}"
 }`;
 
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1000,
-      messages: [{ role: "user", content: prompt }],
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        "HTTP-Referer": "https://compliance-brain.vercel.app",
+        "X-Title": "Compliance Brain",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "meta-llama/llama-3.1-8b-instruct:free",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 1000,
+      }),
     });
 
-    const text = response.content[0].type === "text" ? response.content[0].text : "{}";
+    const data = await response.json();
+    const text = data.choices?.[0]?.message?.content || "{}";
     const clean = text.replace(/```json|```/g, "").trim();
     const reportData = JSON.parse(clean);
 
-    // Save to DB
     const { data: report } = await supabaseAdmin
       .from("compliance_reports")
       .insert({
