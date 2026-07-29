@@ -1,8 +1,45 @@
 "use client";
 import Link from "next/link";
-import { ArrowRight, Zap, FileText, Upload, MessageSquare } from "lucide-react";
+import { ArrowRight, FileText, Upload, MessageSquare } from "lucide-react";
 
 const MG = "linear-gradient(135deg, #003300, #00CC44, #69FF47, #00CC44, #003300)";
+
+// Same animated brain as dashboard
+function AnimatedBrain({ size = 32, color = "#00FF88" }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="heroGlow">
+          <feGaussianBlur stdDeviation="3" result="b" />
+          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+      </defs>
+      {/* Left hemisphere */}
+      <path d="M50 28 C50 28 40 24 33 31 C26 38 26 47 30 53 C25 58 23 65 28 71 C33 77 42 78 47 76 C49 80 50 82 50 82"
+        stroke={color} strokeWidth="2.5" strokeLinecap="round" fill="none" filter="url(#heroGlow)" opacity="0.9" />
+      <path d="M38 40 C41 37 45 39 45 44" stroke={color} strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.7" />
+      <path d="M32 54 C36 50 43 52 42 58" stroke={color} strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.7" />
+      <path d="M34 66 C38 63 44 65 43 70" stroke={color} strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.7" />
+      {/* Right hemisphere */}
+      <path d="M50 28 C50 28 60 24 67 31 C74 38 74 47 70 53 C75 58 77 65 72 71 C67 77 58 78 53 76 C51 80 50 82 50 82"
+        stroke={color} strokeWidth="2.5" strokeLinecap="round" fill="none" filter="url(#heroGlow)" opacity="0.9" />
+      <path d="M62 40 C59 37 55 39 55 44" stroke={color} strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.7" />
+      <path d="M68 54 C64 50 57 52 58 58" stroke={color} strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.7" />
+      <path d="M66 66 C62 63 56 65 57 70" stroke={color} strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.7" />
+      {/* Center */}
+      <line x1="50" y1="28" x2="50" y2="82" stroke={color} strokeWidth="1.5" strokeDasharray="4 3" opacity="0.4" />
+      <circle cx="50" cy="50" r="4" fill={color} filter="url(#heroGlow)" />
+      <circle cx="37" cy="46" r="2" fill={color} opacity="0.6" />
+      <circle cx="63" cy="46" r="2" fill={color} opacity="0.6" />
+      <circle cx="34" cy="61" r="2" fill={color} opacity="0.6" />
+      <circle cx="66" cy="61" r="2" fill={color} opacity="0.6" />
+      <line x1="37" y1="46" x2="50" y2="50" stroke={color} strokeWidth="0.8" opacity="0.3" />
+      <line x1="63" y1="46" x2="50" y2="50" stroke={color} strokeWidth="0.8" opacity="0.3" />
+      <line x1="34" y1="61" x2="50" y2="50" stroke={color} strokeWidth="0.8" opacity="0.3" />
+      <line x1="66" y1="61" x2="50" y2="50" stroke={color} strokeWidth="0.8" opacity="0.3" />
+    </svg>
+  );
+}
 
 export default function HomePage() {
   return (
@@ -24,10 +61,6 @@ export default function HomePage() {
         @keyframes pulse {
           0%,100% { filter: drop-shadow(0 0 12px #00FF8866); }
           50% { filter: drop-shadow(0 0 28px #00FF88AA); }
-        }
-        .story-ring {
-          background: linear-gradient(135deg, #003300, #00CC44, #69FF47);
-          border-radius: 50%; padding: 2px; display: inline-block;
         }
         .card-dark {
           background: #111; border: 1px solid #1E1E1E;
@@ -63,11 +96,7 @@ export default function HomePage() {
       <nav style={{ borderBottom: "1px solid #141414", position: "sticky", top: 0, zIndex: 50, background: "rgba(10,10,10,0.92)", backdropFilter: "blur(12px)", height: 50 }}>
         <div style={{ maxWidth: 1060, margin: "0 auto", padding: "0 20px", height: "100%", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div className="story-ring">
-              <div style={{ width: 26, height: 26, background: "#0A0A0A", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Zap size={12} color="#00FF88" strokeWidth={2.5} />
-              </div>
-            </div>
+            <AnimatedBrain size={28} color="#00FF88" />
             <span style={{ fontWeight: 700, fontSize: 13, letterSpacing: "-0.01em" }}>Compliance Brain</span>
           </div>
           <div style={{ display: "flex", gap: 6 }}>
@@ -77,22 +106,10 @@ export default function HomePage() {
         </div>
       </nav>
 
-      {/* Hero — tight spacing */}
+      {/* Hero */}
       <section style={{ maxWidth: 1060, margin: "0 auto", padding: "32px 20px 40px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
         <div className="brain-pulse" style={{ marginBottom: 16 }}>
-          <svg width="64" height="64" viewBox="0 0 80 80" fill="none">
-            <circle cx="40" cy="40" r="36" stroke="#00FF88" strokeWidth="0.8" strokeOpacity="0.3" />
-            <circle cx="40" cy="40" r="26" stroke="#00FF88" strokeWidth="0.8" strokeOpacity="0.5" />
-            <circle cx="40" cy="40" r="16" fill="#00FF8810" stroke="#00FF88" strokeWidth="1.2" />
-            {[[40, 24], [57, 31], [61, 50], [50, 63], [30, 63], [19, 50], [23, 31]].map(([x, y], i) => (
-              <g key={i}>
-                <circle cx={x} cy={y} r="2.5" fill="#00FF88" opacity="0.8" />
-                <line x1={x} y1={y} x2="40" y2="40" stroke="#00FF88" strokeWidth="0.4" strokeOpacity="0.35" />
-              </g>
-            ))}
-            <circle cx="40" cy="40" r="4" fill="#00FF88" />
-            <circle cx="40" cy="40" r="1.8" fill="#fff" />
-          </svg>
+          <AnimatedBrain size={80} color="#00FF88" />
         </div>
 
         <div style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#00FF8808", border: "1px solid #00FF8820", borderRadius: 999, padding: "3px 12px", fontSize: 10, fontWeight: 700, color: "#00FF88", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 14 }}>
@@ -160,6 +177,9 @@ export default function HomePage() {
       <section style={{ maxWidth: 1060, margin: "0 auto", padding: "0 20px 64px" }}>
         <div style={{ background: "linear-gradient(135deg, #0A1A0A, #0D1F0D)", border: "1px solid #1A2A1A", borderRadius: 16, padding: "40px 28px", textAlign: "center", position: "relative", overflow: "hidden" }}>
           <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: 300, height: 300, background: "radial-gradient(circle, #00FF8806 0%, transparent 70%)", pointerEvents: "none" }} />
+          <div className="brain-pulse" style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+            <AnimatedBrain size={48} color="#00FF88" />
+          </div>
           <p style={{ fontSize: 10, fontWeight: 700, color: "#00FF88", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>Start today</p>
           <h2 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.03em", marginBottom: 8 }}>Ready to be compliant?</h2>
           <p style={{ fontSize: 12, color: "#444", marginBottom: 22 }}>Join companies across Pakistan and MENA.</p>

@@ -6,35 +6,19 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// ✅ PRIMARY: OpenRouter with reliable free model
-// ✅ FALLBACK: Second free model if first fails
-const MODELS = [
-  "meta-llama/llama-3.1-8b-instruct:free",
-  "mistralai/mistral-7b-instruct:free",
-  "google/gemma-2-9b-it:free",
-];
+async function callGroq(prompt: string): Promise<string> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error("GROQ_API_KEY is not set");
 
-async function callOpenRouter(messages: any[], modelIndex = 0): Promise<string> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-
-  if (!apiKey) {
-    throw new Error("OPENROUTER_API_KEY is not set in environment variables");
-  }
-
-  const model = MODELS[modelIndex];
-  console.log(`[Chat API] Trying model: ${model}`);
-
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
       "Content-Type": "application/json",
-      "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "https://compliance-brain.vercel.app",
-      "X-Title": "Compliance Brain",
     },
     body: JSON.stringify({
-      model,
-      messages,
+      model: "llama-3.1-8b-instant",
+      messages: [{ role: "user", content: prompt }],
       max_tokens: 1500,
       temperature: 0.3,
     }),
@@ -42,32 +26,13 @@ async function callOpenRouter(messages: any[], modelIndex = 0): Promise<string> 
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error(`[Chat API] Model ${model} failed: ${response.status} — ${errorText}`);
-
-    // Try next model if available
-    if (modelIndex + 1 < MODELS.length) {
-      console.log(`[Chat API] Falling back to next model...`);
-      return callOpenRouter(messages, modelIndex + 1);
-    }
-
-    throw new Error(`All models failed. Last error: ${response.status} ${errorText}`);
+    console.error(`[Chat API] Groq error: ${response.status} — ${errorText}`);
+    throw new Error(`Groq API failed: ${response.status}`);
   }
 
   const data = await response.json();
   const content = data.choices?.[0]?.message?.content;
-
-  if (!content) {
-    console.error("[Chat API] Empty response from OpenRouter:", JSON.stringify(data));
-
-    // Try next model if empty response
-    if (modelIndex + 1 < MODELS.length) {
-      return callOpenRouter(messages, modelIndex + 1);
-    }
-
-    throw new Error("No content in response from any model");
-  }
-
-  console.log(`[Chat API] Success with model: ${model}`);
+  if (!content) throw new Error("No content in Groq response");
   return content;
 }
 
@@ -80,14 +45,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
     }
 
-    // Fetch relevant regulations from Supabase
     let regulationContext = "";
     try {
       const { data: regulations } = await supabase
         .from("regulations")
         .select("title, content, section, page_number, industry, country")
         .eq("country", country || "Pakistan")
-        .eq("industry", industry || "General")
+        .eq("industry", industry || "Textile")
         .limit(5);
 
       if (regulations && regulations.length > 0) {
@@ -100,69 +64,38 @@ export async function POST(request: NextRequest) {
       console.warn("[Chat API] Could not fetch regulations:", dbError);
     }
 
-    const systemPrompt = `You are Compliance Brain, an expert AI compliance assistant specializing in regulatory requirements for businesses in Pakistan, UAE, Saudi Arabia, and Egypt.
+    const fullPrompt = `You are Compliance Brain, an expert AI compliance assistant for Pakistan, UAE, Saudi Arabia, and Egypt.
 
-Your expertise covers:
-- Environmental regulations
-- Health & Safety (OSHA, IOSH standards)
-- Industry-specific compliance (Textile, Construction, Pharmaceutical)
-- Labor laws and workplace standards
+Your expertise: Environmental regulations, Health & Safety (OSHA, IOSH), Textile/Construction/Pharmaceutical compliance, Labor laws.
 
-When answering:
-1. Always cite specific regulations with section numbers and page references when available
+Rules:
+1. Cite specific regulations with section numbers and page references
 2. Be precise and actionable
-3. Highlight critical compliance deadlines or penalties
-4. Format responses clearly with bullet points for requirements
-5. If regulations data is available, reference it directly${regulationContext}
+3. Highlight penalties and deadlines
+4. Use bullet points for clarity
 
-Current context: Industry: ${industry || "General"}, Country: ${country || "Pakistan"}`;
+Context: Industry: ${industry || "Textile"}, Country: ${country || "Pakistan"}
+${regulationContext}
 
-    const messages = [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: message },
-    ];
+User question: ${message}`;
 
-    const aiResponse = await callOpenRouter(messages);
+    const aiResponse = await callGroq(fullPrompt);
 
-    // Save to chat history if userId provided
     if (userId && sessionId) {
       try {
         await supabase.from("chat_messages").insert([
-          {
-            user_id: userId,
-            session_id: sessionId,
-            role: "user",
-            content: message,
-            created_at: new Date().toISOString(),
-          },
-          {
-            user_id: userId,
-            session_id: sessionId,
-            role: "assistant",
-            content: aiResponse,
-            created_at: new Date().toISOString(),
-          },
+          { user_id: userId, session_id: sessionId, role: "user", content: message, created_at: new Date().toISOString() },
+          { user_id: userId, session_id: sessionId, role: "assistant", content: aiResponse, created_at: new Date().toISOString() },
         ]);
       } catch (dbError) {
         console.warn("[Chat API] Could not save chat history:", dbError);
       }
     }
 
-    return NextResponse.json({
-      success: true,
-      message: aiResponse,
-      model: MODELS[0],
-    });
+    return NextResponse.json({ success: true, message: aiResponse, model: "groq-llama-3.1" });
 
   } catch (error: any) {
     console.error("[Chat API] Fatal error:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Failed to process your request",
-        details: process.env.NODE_ENV === "development" ? error.message : undefined,
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: "Failed to process your request" }, { status: 500 });
   }
 }
